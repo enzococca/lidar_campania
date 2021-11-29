@@ -6,7 +6,7 @@
 name=Lidar Campania
 qgisMinimumVersion=3.0
 description=importazione dati lidar Campania
-version=0.1
+version=0.2
 author=Enzo Cocca
 email=enzo.ccc@gmail.com
 
