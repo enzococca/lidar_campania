@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/lidar_campania" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
