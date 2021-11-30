@@ -36,29 +36,7 @@ from osgeo import gdal
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'lidar_campania_dialog_base.ui'))
 
-# import sys
-# from subprocess import Popen, PIPE, STDOUT
-# # Create a class herit from Exception class
-# class ProcessException(Exception):
-    # pass
-# # function to run the command
-# def execute(command):
 
-    # process = Popen(command.split(" "), shell=True, stdout=PIPE, stderr=STDOUT, stdin=PIPE)
-    # # Poll process for new output until finished
-    # while True:
-        # nextline = process.stdout.readline()
-        # if nextline == '' and process.poll() is not None:
-            # break
-        # # You can add here some progress infos
-
-    # output = process.communicate()[0]
-    # exitCode = process.returncode
-
-    # if (exitCode == 0):
-        # return output
-    # else:
-        # raise ProcessException(command, exitCode, output)
 class LidarCampaniaDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
         """Constructor."""
@@ -69,18 +47,18 @@ class LidarCampaniaDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
-        #self.toolButton.clicked.connect(self.setPath)
-    # def setPath(self):
-        # s = QgsSettings()
-        # dbpath = QFileDialog.getSaveFileName(
-            # self,
-            # "Set file name",
-            # '',
-            # " GPKG (*.gpkg)"
-        # )[0]
-        # if dbpath:
-            # self.lineEdit.setText(dbpath)
-            # s.setValue('',dbpath)
+        self.toolButton.clicked.connect(self.setPath)
+    def setPath(self):
+        s = QgsSettings()
+        dbpath = QFileDialog.getSaveFileName(
+            self,
+            "Set file name",
+            '',
+            " VRT (*.vrt)"
+        )[0]
+        if dbpath:
+            self.lineEdit.setText(dbpath)
+            s.setValue('',dbpath)
     def on_pushButton_2_pressed(self):
             plugin_path = os.path.dirname(os.path.realpath(__file__))
             
@@ -88,43 +66,55 @@ class LidarCampaniaDialog(QtWidgets.QDialog, FORM_CLASS):
             a= QgsVectorLayer(file_, "quadro_unione_lidar_dsm", "ogr")
             QgsProject().instance().addMapLayer(a)
     def on_pushButton_pressed(self):
-        layer = iface.activeLayer()
+        layer =sourceLYR = QgsProject.instance().mapLayersByName('quadro_unione_lidar_dsm')[0] #iface.activeLayer()
         selection = layer.selectedFeatures()
         if not selection:
             QMessageBox.warning(self,"BENVENUTO", "Non hai selezionato nessun elemento nel map canvas",
                                         QMessageBox.Ok)
         
         else:
-            try:
+            # try:
                 # groupName="Lidar"
                 # root = QgsProject.instance().layerTreeRoot()
                 # group = root.addGroup(groupName)
                 # group.setExpanded(False)
-                for d in range(len(selection)):
-                    d=d
-                for feat in selection:
-                    a=feat['url'].split('/')[-1]                
-                    s=iface.addRasterLayer(feat['url'],"lidar_%s"%str(a))
-                    #group.insertChildNode(-1, QgsLayerTreeLayer(s))
-                    
-                    value = (float(d)/float(len(selection)))*100
-                    self.progress_bar.setValue(value)
-                    QApplication.processEvents()
-            except Exception as e :
-                QMessageBox.warning(self, "Errore", "Error ! \n"+ str(e),  QMessageBox.Ok)
-                return 0
+            list=[]
+            for d in range(len(selection)):
+                d=d
+            for feat in selection:
+                a=feat['url'].split('/')[-1]                
+                s=QgsRasterLayer(feat['url'],'lidar_{}'.format(a).replace('.asc',''),'gdal')
+                #t=group.insertChildNode(-1, QgsLayerTreeLayer(s))
+                #QgsProject().instance().addMapLayer(s)
+                value = (float(d)/float(len(selection)))*100
+                self.progress_bar.setValue(value)
+                QApplication.processEvents()
+                list.append(feat['url'])
+                    #QMessageBox.warning(self, "Errore",  str(list),  QMessageBox.Ok)
+            # except Exception as e :
+                # QMessageBox.warning(self, "Errore", "Error ! \n"+ str(e),  QMessageBox.Ok)
+                # return 0
             self.progress_bar.reset()
             #source = QgsRasterLayer(a.source(),'raster','gdal')
-            # try:
-                # t=execute(u"gdal_merge.py -n 0 -a_nodata 0 -of GTiff -o merge.tif %s" % s)
-            # except ProcessException as p:
-                # print(u"something goes wrong : {}".format(p))
-            #QgsProject().instance().addMapLayer(source)
-            QMessageBox.information(self, "Message", "Data Loaded")
-       
-        
-        
-        
-        
+            try:
+                path = self.lineEdit.text() 
+                t= gdal.BuildVRT(path, list)#execute("gdal_merge.py -n 0 -a_nodata 0 -of GTiff -o lidar_merge.tif {}".format(str(list)))
+                t.FlushCache()
+                
+            except KeyError as p:
+                print("something goes wrong : {}".format(p))
+            
+            try:
+                n=QgsRasterLayer(path,'lidar_merge')
+                if n.isValid():
+                    QgsProject().instance().addMapLayer(n)
+                    # QTimer.singleShot(10, self.set_project_crs())
+                    QMessageBox.information(self, "Message", "Data Loaded")
+            except:
+                pass
+            
+    def set_project_crs(self):
+        # Set CRS to EPSG:4326
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem('EPSG:32633'))    
         
         
