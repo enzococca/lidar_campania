@@ -5,12 +5,12 @@
 [general]
 name=Lidar Campania
 qgisMinimumVersion=3.0
-description=importazione dati lidar Campania
-version=0.2
+description=Import of lidar data (1x1) from the Campania region (Italy). Data are added directly from the website http://sit.cittametropolitana.na.it/
+version=0.3
 author=Enzo Cocca
 email=enzo.ccc@gmail.com
 
-about=Importazione dati lida della Campania - Italia
+about=Importazione dati lidar della Campania - Italia
 
 tracker=https://github.com/enzococca/lidar_campania
 repository=https://github.com/enzococca/lidar_campania
