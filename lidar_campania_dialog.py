@@ -26,12 +26,11 @@ import os
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
-from qgis.PyQt.QtGui import *
-from qgis.PyQt.QtCore import *
-from qgis.PyQt.QtWidgets import *
-from qgis.utils import iface
-from qgis.core import *
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QApplication
+from qgis.PyQt.QtCore import QSettings
+from qgis.core import QgsProject, QgsVectorLayer, QgsRasterLayer, QgsSettings, QgsCoordinateReferenceSystem
 from osgeo import gdal
+
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'lidar_campania_dialog_base.ui'))
@@ -48,6 +47,7 @@ class LidarCampaniaDialog(QtWidgets.QDialog, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
         self.toolButton.clicked.connect(self.setPath)
+
     def setPath(self):
         s = QgsSettings()
         dbpath = QFileDialog.getSaveFileName(
@@ -58,63 +58,132 @@ class LidarCampaniaDialog(QtWidgets.QDialog, FORM_CLASS):
         )[0]
         if dbpath:
             self.lineEdit.setText(dbpath)
-            s.setValue('',dbpath)
+            s.setValue('lidar_campania/last_path', dbpath)
+
     def on_pushButton_2_pressed(self):
-            plugin_path = os.path.dirname(os.path.realpath(__file__))
-            
-            file_=os.path.join(plugin_path,'quadro_unione_lidar_dsm.shp')
-            a= QgsVectorLayer(file_, "quadro_unione_lidar_dsm", "ogr")
-            QgsProject().instance().addMapLayer(a)
-    def on_pushButton_pressed(self):
-        layer =sourceLYR = QgsProject.instance().mapLayersByName('quadro_unione_lidar_dsm')[0] #iface.activeLayer()
-        selection = layer.selectedFeatures()
-        if not selection:
-            QMessageBox.warning(self,"BENVENUTO", "Non hai selezionato nessun elemento nel map canvas",
-                                        QMessageBox.Ok)
-        
+        plugin_path = os.path.dirname(os.path.realpath(__file__))
+        file_ = os.path.join(plugin_path, 'quadro_unione_lidar_dsm.shp')
+        layer = QgsVectorLayer(file_, "quadro_unione_lidar_dsm", "ogr")
+        if layer.isValid():
+            QgsProject.instance().addMapLayer(layer)
         else:
-            # try:
-                # groupName="Lidar"
-                # root = QgsProject.instance().layerTreeRoot()
-                # group = root.addGroup(groupName)
-                # group.setExpanded(False)
-            list=[]
-            for d in range(len(selection)):
-                d=d
-            for feat in selection:
-                a=feat['url'].split('/')[-1]                
-                s=QgsRasterLayer(feat['url'],'lidar_{}'.format(a).replace('.asc',''),'gdal')
-                #t=group.insertChildNode(-1, QgsLayerTreeLayer(s))
-                #QgsProject().instance().addMapLayer(s)
-                value = (float(d)/float(len(selection)))*100
+            QMessageBox.warning(
+                self,
+                "Errore",
+                "Impossibile caricare il layer quadro_unione_lidar_dsm.shp",
+                QMessageBox.StandardButton.Ok
+            )
+
+    def on_pushButton_pressed(self):
+        # Check if layer exists
+        layers = QgsProject.instance().mapLayersByName('quadro_unione_lidar_dsm')
+        if not layers:
+            QMessageBox.warning(
+                self,
+                "Errore",
+                "Layer 'quadro_unione_lidar_dsm' non trovato. Caricalo prima.",
+                QMessageBox.StandardButton.Ok
+            )
+            return
+
+        layer = layers[0]
+        selection = layer.selectedFeatures()
+
+        if not selection:
+            QMessageBox.warning(
+                self,
+                "BENVENUTO",
+                "Non hai selezionato nessun elemento nel map canvas",
+                QMessageBox.StandardButton.Ok
+            )
+            return
+
+        # Check output path
+        path = self.lineEdit.text()
+        if not path:
+            QMessageBox.warning(
+                self,
+                "Errore",
+                "Seleziona prima un percorso per il file VRT di output",
+                QMessageBox.StandardButton.Ok
+            )
+            return
+
+        url_list = []
+        total = len(selection)
+        errors = []
+
+        for i, feat in enumerate(selection):
+            try:
+                url = feat['url']
+                if url:
+                    url_list.append(url)
+                # Update progress bar
+                value = int(((i + 1) / total) * 100)
                 self.progress_bar.setValue(value)
                 QApplication.processEvents()
-                list.append(feat['url'])
-                    #QMessageBox.warning(self, "Errore",  str(list),  QMessageBox.Ok)
-            # except Exception as e :
-                # QMessageBox.warning(self, "Errore", "Error ! \n"+ str(e),  QMessageBox.Ok)
-                # return 0
-            self.progress_bar.reset()
-            #source = QgsRasterLayer(a.source(),'raster','gdal')
-            try:
-                path = self.lineEdit.text() 
-                t= gdal.BuildVRT(path, list)#execute("gdal_merge.py -n 0 -a_nodata 0 -of GTiff -o lidar_merge.tif {}".format(str(list)))
-                t.FlushCache()
-                
-            except KeyError as p:
-                print("something goes wrong : {}".format(p))
-            
-            try:
-                n=QgsRasterLayer(path,'lidar_merge')
-                if n.isValid():
-                    QgsProject().instance().addMapLayer(n)
-                    # QTimer.singleShot(10, self.set_project_crs())
-                    QMessageBox.information(self, "Message", "Data Loaded")
-            except:
-                pass
-            
+            except Exception as e:
+                errors.append(f"Feature {i}: {str(e)}")
+
+        self.progress_bar.reset()
+
+        if not url_list:
+            QMessageBox.warning(
+                self,
+                "Errore",
+                "Nessun URL valido trovato nelle feature selezionate",
+                QMessageBox.StandardButton.Ok
+            )
+            return
+
+        # Build VRT
+        try:
+            vrt_options = gdal.BuildVRTOptions(resampleAlg='nearest')
+            vrt_dataset = gdal.BuildVRT(path, url_list, options=vrt_options)
+            if vrt_dataset is None:
+                raise Exception("BuildVRT ha restituito None")
+            vrt_dataset.FlushCache()
+            vrt_dataset = None  # Close the dataset
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Errore",
+                f"Errore nella creazione del VRT:\n{str(e)}",
+                QMessageBox.StandardButton.Ok
+            )
+            return
+
+        # Load the result
+        try:
+            raster_layer = QgsRasterLayer(path, 'lidar_merge')
+            if raster_layer.isValid():
+                QgsProject.instance().addMapLayer(raster_layer)
+                msg = f"Dati caricati correttamente!\n{len(url_list)} tile processati."
+                if errors:
+                    msg += f"\n\nErrori durante il download ({len(errors)}):\n" + "\n".join(errors[:5])
+                    if len(errors) > 5:
+                        msg += f"\n... e altri {len(errors) - 5} errori"
+                QMessageBox.information(
+                    self,
+                    "Completato",
+                    msg,
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Errore",
+                    "Il file VRT e stato creato ma il layer non e valido",
+                    QMessageBox.StandardButton.Ok
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Errore",
+                f"Errore nel caricamento del layer:\n{str(e)}",
+                QMessageBox.StandardButton.Ok
+            )
+
     def set_project_crs(self):
-        # Set CRS to EPSG:4326
-        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem('EPSG:32633'))    
-        
-        
+        # Set CRS to EPSG:32633 (UTM zone 33N)
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem('EPSG:32633'))

@@ -5,8 +5,9 @@
 [general]
 name=Lidar Campania
 qgisMinimumVersion=3.0
+qgisMaximumVersion=4.99
 description=Import of lidar data (1x1) from the Campania region (Italy). Data are added directly from the website http://sit.cittametropolitana.na.it/
-version=0.4
+version=0.5
 author=Enzo Cocca
 email=enzo.ccc@gmail.com
 
@@ -19,16 +20,19 @@ repository=https://github.com/enzococca/lidar_campania
 # Recommended items:
 
 hasProcessingProvider=no
-# Uncomment the following line and add your changelog:
-changelog=release0.4
+supportsQt6=True
 
-	-funzione merge in virtual raster
+# Uncomment the following line and add your changelog:
+changelog=release 0.5
+    - Compatibilita con Qt5 e Qt6 (QGIS 3.x e 4.x)
+    - Migliorata gestione download multipli
+    - Corretta progress bar durante il download
 
 # Tags are comma separated with spaces allowed
-tags=python
+tags=python, lidar, raster, campania, dsm
 
 homepage=https://github.com/enzococca/lidar_campania
-category=Plugins
+category=Raster
 icon=icon.png
 # experimental flag
 experimental=False
@@ -41,9 +45,5 @@ deprecated=False
 # Check the documentation for more information.
 # plugin_dependencies=
 
-Category of the plugin: Raster, Vector, Database or Web
-# category=
-
 # If the plugin can run on QGIS Server.
 server=False
-

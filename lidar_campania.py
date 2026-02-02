@@ -22,8 +22,8 @@
  ***************************************************************************/
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtGui import QIcon, QAction
+from qgis.PyQt.QtWidgets import QWidget
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -48,7 +48,8 @@ class LidarCampania:
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
+        locale_setting = QSettings().value('locale/userLocale')
+        locale = locale_setting[0:2] if locale_setting else 'en'
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
@@ -163,7 +164,7 @@ class LidarCampania:
         icon_path = ':/plugins/lidar_campania/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Lidar Campaania'),
+            text=self.tr(u'Lidar Campania'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -192,9 +193,8 @@ class LidarCampania:
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
-        result = self.dlg.exec_()
+        # Use exec() instead of exec_() for Qt5/Qt6 compatibility
+        result = self.dlg.exec()
         # See if OK was pressed
         if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
             pass
